@@ -7,7 +7,9 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 system = system()
 
@@ -47,45 +49,92 @@ class BerlinBot:
         logging.info("Visit start page")
         driver.get("https://otv.verwalt-berlin.de/ams/TerminBuchen")
         driver.find_element(By.XPATH, '//*[@id="mainForm"]/div/div/div/div/div/div/div/div/div/div[1]/div[1]/div[2]/a').click()
-        time.sleep(5)
 
     @staticmethod
     def tick_off_some_bullshit(driver: webdriver.Chrome):
         logging.info("Ticking off agreement")
-        driver.find_element(By.XPATH, '//*[@id="xi-div-1"]/div[4]/label[2]/p').click()
-        time.sleep(1)
-        driver.find_element(By.ID, 'applicationForm:managedForm:proceed').click()
-        time.sleep(5)
+
+        tick_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="xi-div-1"]/div[4]/label[2]/p')
+                ))
+
+        tick_element.click()
+
+        proceed_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, 'applicationForm:managedForm:proceed'))
+                )
+
+        proceed_element.click()
 
     @staticmethod
     def enter_form(driver: webdriver.Chrome):
         logging.info("Fill out form")
-        # select china
-        s = Select(driver.find_element(By.ID, 'xi-sel-400'))
-        s.select_by_visible_text("China")
-        # eine person
-        s = Select(driver.find_element(By.ID, 'xi-sel-422'))
-        s.select_by_visible_text("eine Person")
-        # no family
-        s = Select(driver.find_element(By.ID, 'xi-sel-427' ))
-        s.select_by_visible_text("nein")
+
+        first_choice = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.ID, 'xi-sel-400'))
+                )
+
+        s = Select(first_choice)
+        s.select_by_visible_text("Russische Föderation")
+
+        second_choice = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.ID, 'xi-sel-422'))
+                )
+
+        s = Select(second_choice)
+        s.select_by_visible_text("zwei Personen")
+
+        third_choice = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.ID, 'xi-sel-427'))
+                )
+
+        s = Select(third_choice)
+        s.select_by_visible_text("ja")
+
+
+        fourth_choice = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.ID, 'xi-sel-428'))
+                )
+
         time.sleep(5)
 
-        # extend stay
-        driver.find_element(By.XPATH, '//*[@id="xi-div-30"]/div[2]/label/p').click()
-        time.sleep(2)
+        s = Select(fourth_choice)
+        s.select_by_visible_text("Russische Föderation")
 
-        # click on study group
-        driver.find_element(By.XPATH, '//*[@id="inner-479-0-2"]/div/div[1]/label/p').click()
-        time.sleep(2)
+        time.sleep(5)
+        # apply for residence
+        apply = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="xi-div-30"]/div[1]/label/p'))
+                )
 
-        # b/c of stufy
-        driver.find_element(By.XPATH, '//*[@id="inner-479-0-2"]/div/div[2]/div/div[5]/label').click()
-        time.sleep(4)
+        apply.click()
 
-        # submit form
-        driver.find_element(By.ID, 'applicationForm:managedForm:proceed').click()
-        time.sleep(10)
+        erwerbst = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, "//*[contains(text(),'Erwerbstätigkeit')]"))
+                )
+
+        erwerbst.click()
+
+
+        blau = WebDriverWait(driver, 50).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, "//*[contains(text(), 'Blaue Karte EU')]")))
+
+
+        blau.click()
+
+        submit = WebDriverWait(driver, 50).until(
+                EC.element_to_be_clickable(
+                    (By.ID, 'applicationForm:managedForm:proceed')))
+
+        submit.click()
     
     def _success(self):
         logging.info("!!!SUCCESS - do not close the window!!!!")
@@ -103,20 +152,33 @@ class BerlinBot:
             self.enter_form(driver)
 
             # retry submit
-            for _ in range(10):
+            while True:
                 if not self._error_message in driver.page_source:
                     self._success()
                 logging.info("Retry submitting form")
-                driver.find_element(By.ID, 'applicationForm:managedForm:proceed').click()
-                time.sleep(self.wait_time)
+
+                time.sleep(60)
+
+                try:
+                    submit = WebDriverWait(driver, 40).until(
+                        EC.element_to_be_clickable(
+                        (By.ID, 'applicationForm:managedForm:proceed')))
+
+                    submit.click()
+                except Exception as e:
+                    logging.error("{}".format(e))
+                    break
 
     def run_loop(self):
         # play sound to check if it works
-        self._play_sound_osx(self._sound_file)
+        # self._play_sound_osx(self._sound_file)
         while True:
             logging.info("One more round")
-            self.run_once()
-            time.sleep(self.wait_time)
+            try:
+                self.run_once()
+            except Exception as e:
+                logging.error("{}".format(e))
+            # time.sleep(self.wait_time)
 
     # stolen from https://github.com/JaDogg/pydoro/blob/develop/pydoro/pydoro_core/sound.py
     @staticmethod
